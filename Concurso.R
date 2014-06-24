@@ -6,13 +6,16 @@ library(foreign)
 library(plyr)
 install.packages("xlsx")
 library(xlsx)
+install.packages("lubridate")
+library(lubridate)
+library(reshape2)
 
 ## Lectura de bases
 
 hechos <- read.csv("./hechos.csv", header = T, as.is = T)
 detenidos <- read.csv("./detenidos.csv", header = T, skip=2, as.is = T)
 
-## Nombres en minusculas
+## Nombres de variables en minusculas
 
 names(hechos) <- tolower(names(hechos))
 names(detenidos) <- names(hechos)
@@ -22,13 +25,47 @@ names(detenidos) <- names(hechos)
 hechos <- hechos[1:4906, ]
 detenidos <- detenidos[1:4936, ]
 
+## Analisis exploratorio de datos
 
+round(table(hechos$fuente)/nrow(hechos)*100,2)
+table(detenidos$fuente)
 
+## El 57.01% de los hechos se reportaron desde el centro de respuesta inmediata zapopan
+## mientras que el 42.99% fue desde los juzgados municipales. En el caso de los detenidos
+## la fuente es los juzgados municipales en todos los casos.
 
+hechos$fecha2 <- dmy(hechos$fecha, tz = "America, Mexico_City")
+hechos$diaSem <- wday(hechos$fecha2, label = T)
+hechos$mes    <- month(hechos$fecha2)
+hechos$fuente <- gsub("JUZGADOS MUNICIPALES", "juzgados_mun", hechos$fuente)
+hechos$fuente <- gsub("CENTRO DE RESPUESTA INMEDIATA ZAPOPAN", "centro_resp", hechos$fuente)
 
+## Ordenamos por fecha
 
+hechos <- hechos[order(hechos$fecha2), ]
 
-# Para limpiar cada base.
+## Melt
+
+hechosMelt <- melt(hechos, id=c("fecha2", "diaSem"), measure.vars = c("delito"))
+hechosF <- dcast(hechosMelt, fecha2 ~ variable, length) 
+hechosD <- dcast(hechosMelt, diaSem ~ variable, length)
+# Cuantos hechos hubo por fecha y dia de la semana. Podria hacerse con table pero 
+# tiene mejor presentacion asi.
+
+barplot(hechosD$delito, names.arg = hechosD$diaSem,
+        xlab = "Dia de la semana", ylab = "Frecuencia", 
+        col = rainbow(7), axes = T, axisnames = T)
+barplot(hechosF$delito, names.arg = hechos$fecha2,
+        xlab = "Dia", ylab = "Frecuencia", 
+        col = rainbow(7), axes = T, axisnames = T)
+## Limpiar tipos de delito
+
+table(hechos$delito)
+delitos <- unique(hechos$delito, rowname = T)
+## Hay 120 tipos de delitos. Vamos a elegir los relevantes.
+
+delitos[-c(2, 11,  12, 22, 27, 32, 41, 52, 109, 113)]
+
 
 # Base vivienda
 Vialidad <- read.dbf("jal_eje_vial.dbf")
@@ -37,13 +74,15 @@ var <- read.dbf("DescripcionVariables.dbf")
 V$ID <- paste(V$CONTROL, V$VIV_SEL, sep = "#")
 ser <- read.dbf("jal_servicios_a.dbf")
 
+## Eventos
 
+eventos <- read.csv("./eventos.csv", as.is = T)
+names(eventos) <- tolower(names(eventos))
+eventos <- eventos[1:106,]
+eventos$inicio <- as.POSIXlt(dmy(eventos$autorizacion, tz = "America, Mexico_City"))
+eventos$fin <- as.POSIXlt(dmy(eventos$vencimiento, tz = "America, Mexico_City"))
+eventos$duracion <-(eventos$fin-eventos$inicio)/(3600*24) # en dias
 
-del <- read.csv("./detenidos.csv", header = T, skip=2)
-hechos <- read.csv("./hechos.csv", header = T)
-names(del)<-names(hechos)
-
-table(del$DELITO)
 
 
 gsub("\303\221", "N", del$DELITO)
