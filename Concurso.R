@@ -9,6 +9,8 @@ library(xlsx)
 install.packages("lubridate")
 library(lubridate)
 library(reshape2)
+install.packages("ggplot2")
+library(ggplot2)
 
 ## Lectura de bases
 
@@ -55,7 +57,7 @@ hechosD <- dcast(hechosMelt, diaSem ~ variable, length)
 barplot(hechosD$delito, names.arg = hechosD$diaSem,
         xlab = "Dia de la semana", ylab = "Frecuencia", 
         col = rainbow(7), axes = T, axisnames = T)
-barplot(hechosF$delito, names.arg = hechos$fecha2,
+barplot(hechosF$delito, names.arg = hechosF$fecha2,
         xlab = "Dia", ylab = "Frecuencia", 
         col = rainbow(7), axes = T, axisnames = T)
 ## Limpiar tipos de delito
@@ -64,8 +66,11 @@ table(hechos$delito)
 delitos <- unique(hechos$delito, rowname = T)
 ## Hay 120 tipos de delitos. Vamos a elegir los relevantes.
 
-delitos[-c(2, 11,  12, 22, 27, 32, 41, 52, 109, 113)]
-
+delitos <- delitos[c(1:5, 8:11, 14:22, 24, 26, 27, 30:31, 34, 36:39, 43:51, 54, 57:58, 63:64, 67:69, 70:71, 75:78, 81:83, 85:87, 89:91, 93:94, 98:102, 108, 111:112, 114, 116:120 )]
+subHechos <- subset(hechos, hechos$delito %in% delitos)
+subHechos$delito[grep("ROBO", subHechos$delito)] <- "robo"
+subHechos$delito[grep("OCCISO", subHechos$delito)] <- "occiso" 
+table(subHechos$delito)
 
 # Base vivienda
 Vialidad <- read.dbf("jal_eje_vial.dbf")
@@ -83,7 +88,12 @@ eventos$inicio <- as.POSIXlt(dmy(eventos$autorizacion, tz = "America, Mexico_Cit
 eventos$fin <- as.POSIXlt(dmy(eventos$vencimiento, tz = "America, Mexico_City"))
 eventos$duracion <-(eventos$fin-eventos$inicio)/(3600*24) # en dias
 
+## Partidos
 
+grep("PARTIDO", eventos$observaciones)
+grep("CONCIERTO", eventos$observaciones)
+grep("OMNI", eventos$interior)
+grep("TELMEX", eventos$interior)
 
 gsub("\303\221", "N", del$DELITO)
 gsub("J","\\.", del$DELITO)
