@@ -4,30 +4,40 @@ setwd("/Users/loredp/Documents/Dataton")
 ## Bibliotecas
 library(foreign)
 library(plyr)
+
 install.packages("xlsx")
 library(xlsx)
+
 install.packages("lubridate")
 library(lubridate)
 library(reshape2)
+
 install.packages("ggplot2")
 library(ggplot2)
+
+install.packages("RgoogleMaps")
+library(RgoogleMaps)
 
 ## Lectura de bases
 
 hechos <- read.csv("./hechos.csv", header = T, as.is = T)
 detenidos <- read.csv("./detenidos.csv", header = T, skip=2, as.is = T)
+eventos <- read.csv("./eventos.csv", as.is = T)
 
 ## Nombres de variables en minusculas
 
 names(hechos) <- tolower(names(hechos))
 names(detenidos) <- names(hechos)
+names(eventos) <-tolower(names(eventos))
+names(eventos) <- gsub("\\.", "", names(eventos))
 
-## Eliminar ultimos 5 renglones en ambas bases (vacios)
+## Quitar renglones vacios
 
 hechos <- hechos[1:4906, ]
 detenidos <- detenidos[1:4936, ]
+eventos <- eventos[1:106,]
 
-## Analisis exploratorio de datos
+## Analisis exploratorio de datos de delitos
 
 round(table(hechos$fuente)/nrow(hechos)*100,2)
 table(detenidos$fuente)
@@ -54,6 +64,9 @@ hechosD <- dcast(hechosMelt, diaSem ~ variable, length)
 # Cuantos hechos hubo por fecha y dia de la semana. Podria hacerse con table pero 
 # tiene mejor presentacion asi.
 
+hechosMelt2 <- melt(hechos, id = "delito", measure.vars = "fecha2")
+hechosDel <- dcast(hechosMelt2, delito ~variable, length)
+
 barplot(hechosD$delito, names.arg = hechosD$diaSem,
         xlab = "Dia de la semana", ylab = "Frecuencia", 
         col = rainbow(7), axes = T, axisnames = T)
@@ -63,27 +76,28 @@ barplot(hechosF$delito, names.arg = hechosF$fecha2,
 ## Limpiar tipos de delito
 
 table(hechos$delito)
-delitos <- unique(hechos$delito, rowname = T)
+delitos <- sort(unique(hechos$delito, rowname = T))
 ## Hay 120 tipos de delitos. Vamos a elegir los relevantes.
 
+delitos <- delitos[!delitos %in% (hechosDel[hechosDel$fecha2<=2,1])]
+
+
+delitos <- delitos[c(2,)]
 delitos <- delitos[c(1:5, 8:11, 14:22, 24, 26, 27, 30:31, 34, 36:39, 43:51, 54, 57:58, 63:64, 67:69, 70:71, 75:78, 81:83, 85:87, 89:91, 93:94, 98:102, 108, 111:112, 114, 116:120 )]
+
+
+
+
 subHechos <- subset(hechos, hechos$delito %in% delitos)
 subHechos$delito[grep("ROBO", subHechos$delito)] <- "robo"
 subHechos$delito[grep("OCCISO", subHechos$delito)] <- "occiso" 
 table(subHechos$delito)
 
-# Base vivienda
-Vialidad <- read.dbf("jal_eje_vial.dbf")
-salud <- read.dbf("jal_cpv2010_loc_urb_servicios_de_salud.dbf")
-var <- read.dbf("DescripcionVariables.dbf")
-V$ID <- paste(V$CONTROL, V$VIV_SEL, sep = "#")
-ser <- read.dbf("jal_servicios_a.dbf")
-
 ## Eventos
 
-eventos <- read.csv("./eventos.csv", as.is = T)
+
 names(eventos) <- tolower(names(eventos))
-eventos <- eventos[1:106,]
+
 eventos$inicio <- as.POSIXlt(dmy(eventos$autorizacion, tz = "America, Mexico_City"))
 eventos$fin <- as.POSIXlt(dmy(eventos$vencimiento, tz = "America, Mexico_City"))
 eventos$duracion <-(eventos$fin-eventos$inicio)/(3600*24) # en dias
@@ -103,9 +117,39 @@ unique(detenidos$DELITO)
 (table((del$Fecha)))
 names(del)
 
-colonias <- read.csv("./Colonias.csv")
-eventos <- read.csv("./eventos.csv")
-twitter <- read.csv("./Twitter.csv")
-grep("secuestro", twitter$X_source_text, value = T)
-grep("robo", twitter$X_source_text, value = T)
-grep("alcohol", twitter$X_source_text, value = T)
+### Mapas
+
+## Mapa Zapopan
+lat = 20.6837308
+lon = -103.4263421
+center = c(lat, lon)
+markers = paste0("&markers=color:blue|label:S|40.702147,-74.015794&markers=color:",
+                 
+                 
+                 "green|label:G|40.711614,-74.012318&markers=color:red|color:red|",
+                 
+                 
+                 "label:C|40.718217,-73.998284")
+MyMap <- GetMap(center=center, zoom=13 ,markers=markers,destfile = "Zapopan.png")
+MyMap
+
+## Graficar puntos
+PlotOnStaticMap(MyMap, lat, lon, destfile = "./Zapopan1.png",
+                FUN= points, zoom = NONE , 
+                col=c('red','blue','green'))
+               
+## Coordenadas
+DF = cbind.data.frame(address=c("Zaruma 20, Lindavista"))
+DF <- with(DF, data.frame(address, t(sapply(DF$address, getGeoCode))))
+DF
+lat <- DF$lat
+lon <- DF$lon
+
+hechos$calle
+
+calles <- paste(hechos$calle, "y", hechos$cruce, sep = " ")
+dir <- paste(calles, hechos$colonia, "Zapopan", sep = ",")
+DF = cbind.data.frame(address = dir[1:10], lat = NA, lon = NA)
+DF <-with(DF, data.frame(address, t(sapply(DF$address,getGeoCode))))
+DF
+
